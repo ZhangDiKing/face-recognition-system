@@ -12,8 +12,8 @@ import time
 from sklearn.svm import SVC
 from sklearn.externals import joblib
 path_model='C:/Users/zhang/Dropbox/DIP/Project/'
-clf = joblib.load(path_model+'projectmodel_friends_final3.pkl') 
-pca = joblib.load(path_model+'projectpca_friends_final3.pkl') 
+clf = joblib.load(path_model+'projectmodel_friends_final.pkl') 
+pca = joblib.load(path_model+'projectpca_friends_final.pkl') 
 path='C:/Users/zhang/Dropbox/DIP/Project/'
 face_cascade = cv2.CascadeClassifier(path+'haarcascade_frontalface_alt.xml')
 def to_str(var):
