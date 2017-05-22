@@ -10,25 +10,148 @@ from sklearn.decomposition   import PCA
 from sklearn.metrics         import confusion_matrix
 from sklearn.externals       import joblib
 
+#get regional LBP histogram from the gray image
+def get_lbp(gray):
+    row       = gray.shape[0]
+    col       = gray.shape[1]
+    neighbors = 24
+    radius    = 3
+    weight    = [[1,1,1,1,1,1,1],
+                 [1,1,1,1,1,1,1],
+                 [1,1,1,1,1,1,1],
+                 [0,1,1,1,1,1,0],
+                 [0,1,1,1,1,1,0],
+                 [0,1,1,1,1,1,0],
+                 [0,1,1,1,1,1,0]]
+
+    #extract the LBP feature of the whole image
+    lbp = local_binary_pattern(gray, 
+                             neighbors,
+                             radius, 
+                             method="uniform")
+    local_hist=[]
+    for r in range(7):
+        for c in range(7):
+            
+            #the range of the block
+            r_start = r * int(row / 7)
+            c_start = c * int(col / 7)
+            
+            if((r + 1) * int(row / 7) <= row):
+                r_end = (r + 1) * int(row / 7)
+            else:
+                r_end = row
+            if((c + 1) * int(col / 7) <= col):
+                c_end = (c + 1) * int(col / 7)
+            else:
+                c_end = col
+            if not weight[r][c] == 0:
+                #get the regional histogram
+                (hist_temp, _) = np.histogram(lbp[r_start:r_end, c_start:c_end].ravel(),
+                                              bins=np.arange(0, neighbors + 3),
+                                              range=(0, neighbors + 2))
+                #normalize the histogram
+                hist_temp = hist_temp.astype("float")
+                hist_temp /= (hist_temp.sum())
+                
+            local_hist = local_hist + list(hist_temp * weight[r][c])
+    return local_hist
+
+#the funtion to show the LBP of the sample
+def show_lbp_sample(save_path):
+    local_hist = []
+    neighbors  = 24
+    radius     = 3
+    r          = 2
+    c          = 4
+    block_size = 20
+    
+    #load image
+    gray       = cv2.imread(save_path,0)
+
+    #get LBP histogram
+    lbp = local_binary_pattern(gray, 
+                             neighbors,
+                             radius, 
+                             method="uniform")
+    
+    #rescale the lbp into 0-255
+    lbp        = lbp.astype("float") / 9 * 255
+    lbp        = lbp.astype("uint8")
+    block      = lbp[r * block_size : (r + 1) * block_size, c * block_size : (c + 1) * block_size]
+    
+    #show the LBP of the sample
+    cv2.imshow('lbp_image', lbp[r * block_size : (r + 1) * block_size, c * block_size : (c + 1) * block_size])
+    plt.title('LBP histogram')
+    plt.xlabel('uniform values of LBP')
+    plt.ylabel('H')
+    plt.show()
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    
+    #print the histogram of certain region of the image
+    plt.hist(block.ravel(), neighbors + 2, [0, neighbors + 2]); 
+    hist_temp, _ = np.histogram(block.ravel(),bins=np.arange(0, neighbors + 3),range=(0, neighbors + 2))
+    hist_temp    = hist_temp.astype("float")
+    hist_normal  = hist_temp/(hist_temp.sum())
+    print(hist_temp)
+    print(hist_normal)
+    return
+
+#SVM with rbf kernel
+def train_svm_rbf(train_data, test_data, train_labels, test_labels, param_grid, n_classes):    
+    
+    t0         = time.clock()
+    param_grid = {'C': [0.1, 1, 5, 10, 20, 100, 1000, 10000],
+                  'gamma': [0.001, 0.01, 0.1, 1, 10, 100]}
+    clf        = GridSearchCV(SVC(kernel = 'rbf', class_weight = 'balanced'), param_grid)
+    clf        = clf.fit(train_data, train_labels)
+    
+    print("done in %0.3fs" % (time.clock() - t0))
+    print("Best estimator found by grid search:")
+    print(clf.best_estimator_)
+    acc       = np.mean(clf.best_estimator_.predict(test_data) == test_labels)
+    acc_train = np.mean(clf.best_estimator_.predict(train_data) == train_labels)
+    y_pred    = clf.predict(test_data)
+    print('test accuracy=', acc)
+    print('training accuracy=', acc_train)
+    print(confusion_matrix(test_labels, y_pred, labels = range(n_classes)))
+    return clf
+
+#SVM with linear kernel
+def train_svm_linear(train_data, test_data, train_labels, test_labels, param_grid, n_classes):    
+    
+    clf        = GridSearchCV(LinearSVC(), param_grid)
+    clf        = clf.fit(train_data, train_labels)
+
+    print("done in %0.3fs" % (time.clock() - t0))
+    print("Best estimator found by grid search:")
+    print(clf.best_estimator_)
+    acc       = np.mean(clf.best_estimator_.predict(test_data) == test_labels)
+    acc_train = np.mean(clf.best_estimator_.predict(train_data) == train_labels)
+    print('test accuracy=', acc)
+    print('training accuracy=', acc_train)
+    return clf, acc
+
+def PCA_process(train_data, test_data, train_labels, test_labels, n_components):
+    n_components = 220
+    t0           = time.clock()
+    pca          = PCA(n_components = n_components, svd_solver = 'randomized', whiten = True).fit(train_data)
+    
+    #PCA transform of the training data and test data
+    t0 = time.clock()
+    lbp_train_pca = pca.transform(train_data)
+    lbp_test_pca = pca.transform(test_data)
+    print("done in %0.3fs" % (time.clock() - t0))
+    return lbp_train_pca, lbp_test_pca, pca
+
+
 train_data   = []
 train_labels = []
 test_data    = []
-test_labels  = []
-neighbors    = 24
-radius       = 3
+test_labels  = []    
 sample       = 13
-block_size   = 20
-im_size      = 140
 class_size   = 300
-weight       = [[1,1,1,1,1,1,1],
-                [1,1,1,1,1,1,1],
-                [1,1,1,1,1,1,1],
-                [0,1,1,1,1,1,0],
-                [0,1,1,1,1,1,0],
-                [0,1,1,1,1,1,0],
-                [0,1,1,1,1,1,0]]
-
-
 for i in range(sample):
     #convert the number of folder to string
     no_folder = str(i)
@@ -44,19 +167,7 @@ for i in range(sample):
         
         #get LBP histogram
         if not gray == None:
-            lbp        = local_binary_pattern(gray, neighbors, radius, method = "uniform")
-            #print(save_path)
-            local_hist = []
-            for r in range(int(im_size / block_size)):
-                for c in range(int(im_size / block_size)):
-                    if not weight[r][c] == 0
-                        (hist_temp, _) = np.histogram(lbp[r * block_size:(r + 1) * block_size, c * block_size:(c + 1)  *block_size].ravel(),
-                                                      bins = np.arange(0, neighbors + 3),
-                                                      range = (0, neighbors + 2))
-                        # normalize the histogram
-                        hist_temp      = hist_temp.astype("float")
-                        hist_temp /    = (hist_temp.sum())
-                        local_hist     = local_hist+list(hist_temp*weight[r][c])
+            local_hist = get_lbp(gray)
             
             if j % 9 == 0 or j % 9 == 1:
                 test_labels.append(i)
@@ -67,126 +178,64 @@ for i in range(sample):
                 
 #show the sample of LBP jpg
 save_path  = 'sample_face.jpg'
-gray       = cv2.imread(save_path,0)
-
-#get LBP histogram
-local_hist = []
-lbp        = cv2.imread(save_path,0)
-
-#rescale the lbp into 0-255
-r     = 2
-c     = 4
-block = lbp[r * block_size : (r + 1) * block_size, c * block_size : (c + 1) * block_size]
-lbp   = lbp.astype("float") / 9 * 255
-lbp   = lbp.astype("uint8")
-
-#show the LBP of the sample
-cv2.imshow('lbp_image', lbp[r * block_size : (r + 1) * block_size, c * block_size : (c + 1) * block_size])
-plt.title('LBP histogram')
-plt.xlabel('uniform values of LBP')
-plt.ylabel('H')
-plt.show()
-cv2.waitKey(0)
-cv2.destroyAllWindows()
-
-#print the histogram of certain region of the image
-plt.hist(block.ravel(), neighbors + 2, [0, neighbors + 2]); 
-hist_temp, _ = np.histogram(block.ravel(),bins=np.arange(0, neighbors + 3),range=(0, neighbors + 2))
-hist_temp    = hist_temp.astype("float")
-hist_normal  = hist_temp/(hist_temp.sum())
-print(hist_temp)
-print(hist_normal)
+show_lbp_sample(save_path)
 
 # start training the model
+n_classes=11
 #SVM with rbf kernel
-print("Fitting the classifier to the training set")
-t0         = time.clock()
 param_grid = {'C': [0.1, 1, 5, 10, 20, 100, 1000, 10000],
               'gamma': [0.001, 0.01, 0.1, 1, 10, 100]}
-clf        = GridSearchCV(SVC(kernel = 'rbf', class_weight = 'balanced'), param_grid)
-clf        = clf.fit(train_data, train_labels)
-
-print("done in %0.3fs" % (time.clock() - t0))
-print("Best estimator found by grid search:")
-print(clf.best_estimator_)
-acc       = np.mean(clf.best_estimator_.predict(test_data) == test_labels)
-acc_train = np.mean(clf.best_estimator_.predict(train_data) == train_labels)
-print(acc)
-print(acc_train)
+clf, acc   = train_svm_rbf(train_data, 
+                           test_data, 
+                           train_labels, 
+                           test_labels, 
+                           param_grid, 
+                           n_classes)
 
 #SVM with linear kernel
-print("Fitting the classifier to the training set")
-t0         = time.clock()
 param_grid = {'C': [0.1,0.5,1,5,10,100,1000,10000]}
-clf        = GridSearchCV(LinearSVC(), param_grid)
-clf        = clf.fit(train_data, train_labels)
-
-print("done in %0.3fs" % (time.clock() - t0))
-print("Best estimator found by grid search:")
-print(clf.best_estimator_)
-acc       = np.mean(clf.best_estimator_.predict(test_data) == test_labels)
-acc_train = np.mean(clf.best_estimator_.predict(train_data) == train_labels)
-print(acc)
-print(acc_train)
+clf, acc   = train_svm_linear(train_data, 
+                              test_data, 
+                              train_labels, 
+                              test_labels, 
+                              param_grid, 
+                              n_classes)
 
 #PCA of the LBP
-max_acc      = 0
 n_components = 220
-n_classes    = 11
-t0           = time.clock()
-pca          = PCA(n_components = n_components, svd_solver = 'randomized', whiten = True).fit(train_data)
-print("done in %0.3fs" % (time.clock() - t0))
-
-#PCA transform of the training data and test data
-t0 = time.clock()
-lbp_train_pca = pca.transform(train_data)
-lbp_test_pca = pca.transform(test_data)
-print("done in %0.3fs" % (time.clock() - t0))
+lbp_train_pca, lbp_test_pca, pca = PCA_process(train_data, 
+                                          test_data, 
+                                          train_labels, 
+                                          test_labels, 
+                                          n_components)
 
 #SVM with RBF kernel after PCA
-print("Fitting the classifier to the training set")
-t0         = time.clock()
 param_grid = {'C': [0.01, 0.1, 1, 7, 10, 30, 100, 1000],
               'gamma': [0.00001, 0.0001, 0.004, 0.0005, 0.006, 0.001, 0.01, 0.1, 1]}
-clf        = GridSearchCV(SVC(kernel='rbf', class_weight='balanced'), param_grid)
-clf        = clf.fit(lbp_train_pca, train_labels)
-print("done in %0.3fs" % (time.clock() - t0))
-print("Best estimator found by grid search:")
-print(clf.best_estimator_)
-acc         = np.mean(clf.best_estimator_.predict(lbp_test_pca) == test_labels)
-acc_train   = np.mean(clf.best_estimator_.predict(lbp_train_pca) == train_labels)
-y_pred      = clf.predict(lbp_test_pca)
-confuse_mat = confusion_matrix(test_labels, y_pred, labels = range(n_classes))
-print(acc)
-print(acc_train)
-print(confusion_matrix(test_labels, y_pred, labels = range(n_classes)))
+clf, acc   = train_svm_rbf(lbp_train_pca, 
+                           lbp_test_pca, 
+                           train_labels, 
+                           test_labels, 
+                           param_grid, 
+                           n_classes)
 
 #save model to certain path
 path    = 'C:/Users/zhang/Documents/DIP/project'
 max_acc = 0
 if(acc > max_acc):
     joblib.dump(clf, path+'model_friends_final.pkl')
-    joblib.dump(pca,path+'pca_friends_final.pkl')
+    joblib.dump(pca, path+'pca_friends_final.pkl')
     max_acc = acc
     
 
 #SVM with linear kernel after PCA
-print("Fitting the classifier to the training set")
-t0          = time.clock()
 param_grid  = {'C': [i / 1000.0 for i in range(1,10)]}
-clf         = GridSearchCV(LinearSVC(), param_grid)
-print("done in %0.3fs" % (time.clock() - t0))
-print("Best estimator found by grid search:")
-print(clf.best_estimator_)
-
-clf         = clf.fit(lbp_train_pca, train_labels)
-acc         = np.mean(clf.best_estimator_.predict(lbp_test_pca) == test_labels)
-acc_train   = np.mean(clf.best_estimator_.predict(lbp_train_pca) == train_labels)
-y_pred      = clf.predict(lbp_test_pca)
-confuse_mat = confusion_matrix(test_labels, y_pred, labels = range(n_classes))
-print(acc)
-print(acc_train)
-print(confusion_matrix(test_labels, y_pred, labels = range(n_classes)))
+clf, acc    = train_svm_linear(lbp_train_pca, 
+                               lbp_test_pca, 
+                               train_labels, 
+                               test_labels, 
+                               param_grid, 
+                               n_classes)
 
 #save model to certain path
 path='C:/Users/zhang/Documents/DIP/project'
