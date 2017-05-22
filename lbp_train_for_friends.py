@@ -131,6 +131,7 @@ def train_svm_linear(train_data, test_data, train_labels, test_labels, param_gri
     acc_train = np.mean(clf.best_estimator_.predict(train_data) == train_labels)
     print('test accuracy=', acc)
     print('training accuracy=', acc_train)
+    print(confusion_matrix(test_labels, y_pred, labels = range(n_classes)))
     return clf, acc
 
 def PCA_process(train_data, test_data, train_labels, test_labels, n_components):
