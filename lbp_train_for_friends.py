@@ -160,6 +160,8 @@ confuse_mat = confusion_matrix(test_labels, y_pred, labels = range(n_classes))
 print(acc)
 print(acc_train)
 print(confusion_matrix(test_labels, y_pred, labels = range(n_classes)))
+
+#save model to certain path
 path    = 'C:/Users/zhang/Documents/DIP/project'
 max_acc = 0
 if(acc > max_acc):
@@ -176,6 +178,7 @@ clf         = GridSearchCV(LinearSVC(), param_grid)
 print("done in %0.3fs" % (time.clock() - t0))
 print("Best estimator found by grid search:")
 print(clf.best_estimator_)
+
 clf         = clf.fit(lbp_train_pca, train_labels)
 acc         = np.mean(clf.best_estimator_.predict(lbp_test_pca) == test_labels)
 acc_train   = np.mean(clf.best_estimator_.predict(lbp_train_pca) == train_labels)
@@ -184,6 +187,8 @@ confuse_mat = confusion_matrix(test_labels, y_pred, labels = range(n_classes))
 print(acc)
 print(acc_train)
 print(confusion_matrix(test_labels, y_pred, labels = range(n_classes)))
+
+#save model to certain path
 path='C:/Users/zhang/Documents/DIP/project'
 if(acc > max_acc):
     joblib.dump(clf, path+'model_friends_final2.pkl')
