@@ -1,6 +1,6 @@
 # face-recognition-system
 Really fun project, I collected the faces of my friends and made a small-scale design of face recognition system.  
-Follow the classic paper ["Face Recognition using Local Binary Patterns"](https://globaljournals.org/GJCST_Volume13/1-Face-Recognition-using-Local.pdf), I used tradional ways to realize face recogniztion
+Follow the classic paper ["Face Recognition using Local Binary Patterns"](https://globaljournals.org/GJCST_Volume13/1-Face-Recognition-using-Local.pdf), I used traditional ways to realize face recogniztion
       
 ## System Configuration
 opencv-python + python 3.5 + sklearn
